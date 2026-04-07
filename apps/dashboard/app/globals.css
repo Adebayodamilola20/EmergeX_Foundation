@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+/*
+ * emergex Dashboard Design Tokens
+ *
+ * Uses CSS custom properties so Tailwind classes reference semantic tokens.
+ * NEVER use raw gray/white/black — always go through these variables.
+ */
+:root {
+  --emergex-bg: #0a0a0f;
+  --emergex-bg-elevated: #12121a;
+  --emergex-bg-hover: #1a1a26;
+  --emergex-border: #2a2a3a;
+  --emergex-border-focus: #4a4a6a;
+  --emergex-text: #e4e4ef;
+  --emergex-text-secondary: #9898b0;
+  --emergex-text-muted: #5e5e78;
+  --emergex-accent: #6366f1;
+  --emergex-accent-hover: #818cf8;
+  --emergex-success: #22c55e;
+  --emergex-warning: #eab308;
+  --emergex-error: #ef4444;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--emergex-bg);
+  color: var(--emergex-text);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--emergex-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--emergex-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--emergex-border-focus);
+}

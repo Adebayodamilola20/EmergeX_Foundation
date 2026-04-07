@@ -1,0 +1,20 @@
+{
+  "name": "@emergex/voice",
+  "version": "0.1.0",
+  "description": "Speech-to-Text for emergex Code — local Whisper transcription via whisper.cpp, sox mic recording",
+  "main": "index.ts",
+  "types": "index.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./index.ts",
+      "types": "./index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

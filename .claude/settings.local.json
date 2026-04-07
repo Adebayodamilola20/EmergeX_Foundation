@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(find /Users/jamesspalding/emergex-code -type f -name *toolshed*)",
+      "Bash(find /Users/jamesspalding/8gi-control-plane -type f -name *toolshed*)",
+      "Bash(find /Users/jamesspalding/emergex-code/packages/toolshed/tools -name \"*.ts\" -type f -exec basename {})"
+    ]
+  }
+}

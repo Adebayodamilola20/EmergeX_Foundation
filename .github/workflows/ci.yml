@@ -1,0 +1,184 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Check for merge conflict markers
+        run: |
+          if grep -rn --include='*.ts' --include='*.tsx' -l '<<<<<<<\|=======\|>>>>>>>' \
+            packages/ apps/ bin/ scripts/ \
+            --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.git \
+            2>/dev/null | grep .; then
+            echo "::error::Merge conflict markers found in TypeScript source files"
+            echo "Run: grep -rn --include='*.ts' --include='*.tsx' '<<<<<<<' packages/ apps/ bin/"
+            exit 1
+          fi
+          echo "Conflict marker check: PASS"
+
+      - name: Type check
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Test
+        run: bun test
+
+      - name: Build CLI
+        run: bun run build
+
+      - name: Verify build output
+        run: |
+          test -f dist/cli.js || (echo "Build failed: dist/cli.js not found" && exit 1)
+          head -1 dist/cli.js | grep -q "#!/usr/bin/env bun" || (echo "Shebang missing" && exit 1)
+          echo "Build OK: $(wc -c < dist/cli.js | tr -d ' ') bytes"
+
+      - name: Verify version sync
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          BIN_VERSION=$(grep 'const VERSION' bin/emergex.ts | grep -o '"[^"]*"' | tr -d '"')
+          if [ "$PKG_VERSION" != "$BIN_VERSION" ]; then
+            echo "Version mismatch: package.json=$PKG_VERSION bin/emergex.ts=$BIN_VERSION"
+            exit 1
+          fi
+          echo "Version sync OK: $PKG_VERSION"
+
+      - name: Security - secrets scan
+        run: |
+          FINDINGS=$(grep -rn --include='*.ts' --include='*.json' \
+            -E '(API_KEY|SECRET|PASSWORD|PRIVATE_KEY)\s*[:=]\s*"[^"]{8,}' \
+            packages/ apps/ bin/ \
+            --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.emergex \
+            2>/dev/null | grep -v 'description\|placeholder\|example\|interface\|type ' || true)
+          if [ -n "$FINDINGS" ]; then
+            echo "Potential hardcoded secrets found:"
+            echo "$FINDINGS"
+            exit 1
+          fi
+          echo "Secrets scan PASS"
+
+      - name: Policy engine integrity
+        run: |
+          bun -e "
+            import {parse} from 'yaml';
+            import {readFileSync} from 'fs';
+            const p = parse(readFileSync('packages/permissions/default-policies.yaml','utf-8'));
+            if (!p.policies || p.policies.length < 10) {
+              console.error('Policy count too low: ' + (p.policies?.length || 0));
+              process.exit(1);
+            }
+            console.log(p.policies.length + ' policies loaded - OK');
+          "
+
+      - name: Dependency audit
+        run: |
+          npx audit-ci --high 2>/dev/null || {
+            echo "::warning::Dependency audit found high/critical vulnerabilities"
+            npm audit --audit-level=high 2>/dev/null || true
+          }
+
+      - name: 200-line rule check
+        run: |
+          bun -e "
+            import { readdirSync, readFileSync, statSync } from 'fs';
+            import { join, relative } from 'path';
+
+            const EXEMPT_PATTERNS = [
+              /\.d\.ts$/, /\.test\.ts$/, /\.spec\.ts$/, /\.config\./,
+              /node_modules/, /dist\//, /\.next\//, /\.emergex\//,
+              /benchmarks\//, /\.github\//,
+            ];
+
+            const MAX_LINES = 200;
+            const violations: string[] = [];
+
+            function scan(dir: string) {
+              for (const entry of readdirSync(dir, { withFileTypes: true })) {
+                const full = join(dir, entry.name);
+                if (entry.isDirectory()) {
+                  if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '.git') continue;
+                  scan(full);
+                } else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) {
+                  const rel = relative(process.cwd(), full);
+                  if (EXEMPT_PATTERNS.some(p => p.test(rel))) continue;
+
+                  const content = readFileSync(full, 'utf-8');
+                  if (content.includes('8gi:200-exempt')) continue;
+
+                  const lines = content.split('\n')
+                    .filter(l => l.trim() !== '' && !l.trim().startsWith('//') && !l.trim().startsWith('/*') && !l.trim().startsWith('*'))
+                    .length;
+
+                  if (lines > MAX_LINES) {
+                    violations.push(rel + ': ' + lines + ' lines');
+                  }
+                }
+              }
+            }
+
+            scan('packages');
+            scan('apps');
+            scan('bin');
+
+            if (violations.length > 0) {
+              console.log('200-line rule violations (' + violations.length + ' files):');
+              violations.forEach(v => console.log('  ' + v));
+              console.log('');
+              console.log('Add \"// 8gi:200-exempt\" to files with documented exceptions.');
+              console.log('::warning::' + violations.length + ' files exceed 200-line limit');
+            } else {
+              console.log('200-line rule: PASS');
+            }
+          "
+
+      - name: CHANGELOG entry required
+        if: github.event_name == 'pull_request'
+        run: |
+          CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..HEAD 2>/dev/null || git diff --name-only HEAD~1)
+          if echo "$CHANGED" | grep -q "CHANGELOG.md"; then
+            echo "CHANGELOG entry found - OK"
+          else
+            echo "::error::PR must include a CHANGELOG.md entry"
+            exit 1
+          fi
+
+  smoke:
+    name: Harness Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install
+      - name: CLI version check
+        run: |
+          OUTPUT=$(bun run cli -- --version 2>&1 || true)
+          echo "CLI output: $OUTPUT"
+          echo "$OUTPUT" | grep -qE '[0-9]+\.[0-9]+\.[0-9]+' || (echo "::error::CLI did not output a version" && exit 1)
+          echo "CLI smoke: PASS"
+        env:
+          INFERENCE_MODE: offline

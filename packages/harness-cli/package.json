@@ -1,0 +1,12 @@
+{
+  "name": "@emergex/harness-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Headless CLI for running, inspecting, and testing emergex sessions",
+  "bin": {
+    "emergex-harness": "./index.ts"
+  },
+  "scripts": {
+    "start": "bun run index.ts"
+  }
+}

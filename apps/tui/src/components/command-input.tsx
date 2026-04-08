@@ -176,16 +176,8 @@ export function CommandInput({
 		extraContextSuggestions: extraSlashContext,
 	});
 
-	// Pulsing prompt animation when idle
-	useEffect(() => {
-		if (isProcessing) return;
-
-		const interval = setInterval(() => {
-			setPromptPulse((prev) => !prev);
-		}, 800);
-
-		return () => clearInterval(interval);
-	}, [isProcessing]);
+	// Remove the unnecessary parent-level pulse interval 
+	// The PromptIndicator handles its own animation now.
 
 	// Slash palette: show while typing the command token (no space yet) so long names like /billiondollarboardroom work
 	useEffect(() => {
@@ -210,6 +202,13 @@ export function CommandInput({
 			}
 		},
 		{ isActive: focused },
+	);
+
+	const handleChange = useCallback(
+		(v: string) => {
+			setValue(transformInputValue ? transformInputValue(v) : v);
+		},
+		[transformInputValue],
 	);
 
 	const handleSubmit = useCallback(
@@ -309,12 +308,10 @@ export function CommandInput({
 
 				{/* Text input with ghost overlay */}
 				<Box>
-					<TextInput
+					<IsolatedTextInput
 						value={value}
 						focus={focused}
-						onChange={(v) =>
-							setValue(transformInputValue ? transformInputValue(v) : v)
-						}
+						onChange={handleChange}
 						onSubmit={handleSubmit}
 						placeholder={
 							isProcessing

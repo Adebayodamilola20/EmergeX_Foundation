@@ -434,6 +434,41 @@ function SlashCommandHelp({
 }
 
 // ============================================
+// Isolated Text Input (Fixes Ink lag/scrambling)
+// ============================================
+
+interface IsolatedTextInputProps {
+	value: string;
+	focus?: boolean;
+	onChange: (v: string) => void;
+	onSubmit: (v: string) => void;
+	placeholder?: string;
+}
+
+const IsolatedTextInput = memo(
+	({ value, focus, onChange, onSubmit, placeholder }: IsolatedTextInputProps) => {
+		const [localValue, setLocalValue] = useState(value);
+
+		useEffect(() => {
+			setLocalValue(value);
+		}, [value]);
+
+		return (
+			<TextInput
+				value={localValue}
+				focus={focus}
+				onChange={(v) => {
+					setLocalValue(v);
+					onChange(v);
+				}}
+				onSubmit={onSubmit}
+				placeholder={placeholder}
+			/>
+		);
+	},
+);
+
+// ============================================
 // Minimal Command Input
 // ============================================
 
@@ -442,6 +477,7 @@ export function MinimalCommandInput({
 	isProcessing,
 }: CommandInputProps) {
 	const [value, setValue] = useState("");
+
 
 	const handleSubmit = (input: string) => {
 		if (!input.trim()) return;

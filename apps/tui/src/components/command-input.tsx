@@ -448,10 +448,21 @@ interface IsolatedTextInputProps {
 const IsolatedTextInput = memo(
 	({ value, focus, onChange, onSubmit, placeholder }: IsolatedTextInputProps) => {
 		const [localValue, setLocalValue] = useState(value);
+		const [lastPropValue, setLastPropValue] = useState(value);
 
-		useEffect(() => {
-			setLocalValue(value);
-		}, [value]);
+		// Synchronously derive state from props to prevent stale parent updates from rewriting keystrokes (the primary cause of dropped/jumbled letters in Ink)
+		if (value !== lastPropValue) {
+			setLastPropValue(value);
+			// Only accept the parent's value if it's a hard reset, a leap forward (ghost suggestion accepted), or a complete divergence (e.g. image path replaced)
+			// Ignore if it's just the old prefix lagging behind our fast typing
+			if (
+				value === "" ||
+				(value.length > localValue.length && value.startsWith(localValue)) ||
+				(!localValue.startsWith(value) && !value.startsWith(localValue))
+			) {
+				setLocalValue(value);
+			}
+		}
 
 		return (
 			<TextInput

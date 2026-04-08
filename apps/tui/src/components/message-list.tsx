@@ -31,7 +31,7 @@ export function MessageList({
   messages,
   animateTyping = true,
   soundEnabled = false,
-  maxVisible = 50,
+  maxVisible = 15,
   contentWidth: contentWidthProp,
   showAnimations = true,
 }: MessageListProps) {
@@ -84,13 +84,40 @@ export function MessageList({
     }
   }
 
-  // Only render the most recent messages to prevent scroll jumping.
-  const visibleMessages = collapsed.length > maxVisible
-    ? collapsed.slice(-maxVisible)
-    : collapsed;
+  // Deduplicate and cap visible messages
+  const processed: Message[] = [];
+  let lastPlanId: string | null = null;
+  let lastAvenueId: string | null = null;
+
+  // Reverse iterate to find most recent plan/avenue
+  for (let i = collapsed.length - 1; i >= 0; i--) {
+    const m = collapsed[i];
+    const isPlan = m.content.includes("PLAN:") || m.content.includes("Plan detected");
+    const isAvenue = m.content.includes("Avenue");
+
+    if (isPlan) {
+      if (lastPlanId) continue; // Skip older plans
+      lastPlanId = m.id;
+    }
+    if (isAvenue) {
+      if (lastAvenueId) continue; // Skip older avenues
+      lastAvenueId = m.id;
+    }
+    processed.unshift(m);
+  }
+
+  // Final cap: only show the most recent 10 messages to ensure vertical safety
+  const visibleMessages = processed.slice(-10);
 
   return (
-    <Box flexDirection="column" flexGrow={1} minHeight={0}>
+    <Box 
+      flexDirection="column" 
+      flexGrow={1} 
+      flexShrink={1} 
+      minHeight={0}
+      height={Math.max(10, (stdout?.rows ?? 24) - 10)}
+      overflow="hidden"
+    >
       {visibleMessages.map((message, index) => (
         <MessageItem
           key={message.id}

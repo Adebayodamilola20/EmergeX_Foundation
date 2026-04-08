@@ -11,7 +11,7 @@ export function FixedFrame({ children }: FixedFrameProps) {
 
   return (
     <Box
-      height={viewport.height}
+      height={viewport.height - 1}
       width="100%"
       flexDirection="column"
       overflow="hidden"

@@ -14,7 +14,7 @@
  */
 
 import { Box, useApp, useInput } from "ink";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, memo } from "react";
 import {
 	type TaskCategory,
 	getRouterStats,
@@ -93,6 +93,10 @@ import {
 	EnhancedStatusBar,
 	StatusBar,
 } from "./components/status-bar.js";
+
+const MemoizedHeader = memo(Header);
+const MemoizedStatusBar = memo(EnhancedStatusBar);
+const MemoizedMessageList = memo(MessageList);
 import { AnimatedStatusVerb } from "./components/status-verb.js";
 import type { TaskItem } from "./components/task-card/index.js";
 import { useAgentOrchestration } from "./hooks/useAgentOrchestration.js";
@@ -4703,7 +4707,7 @@ export function App({
 				}
 				return (
 					<Stack minHeight={0} flexGrow={1}>
-						<MessageList
+						<MemoizedMessageList
 							messages={messages}
 							animateTyping={showAnimations}
 							showAnimations={showAnimations}
@@ -4731,7 +4735,7 @@ export function App({
 				{fancyHeader ? (
 					<FancyHeader isProcessing={isProcessing} />
 				) : (
-					<Header
+					<MemoizedHeader
 						isProcessing={isProcessing}
 						showAnimations={showAnimations}
 						updateAvailable={updateInfo}
@@ -4968,7 +4972,7 @@ export function App({
 
 				{/* Status bar */}
 				{showEnhancedStatus ? (
-					<EnhancedStatusBar
+					<MemoizedStatusBar
 						modelName={currentModel}
 						runningAgents={isProcessing ? 1 : 0}
 						totalAgents={1}

@@ -682,6 +682,8 @@ async function spawnPet(sessionId?: string) {
 }
 
 async function tuiCommand(args: string[]) {
+  // Clear screen before launch to prevent overlapping with previous terminal output
+  process.stdout.write("\x1Bc");
   console.log(BANNER);
 
   // Auto-spawn pet unless --no-pet
@@ -802,6 +804,24 @@ async function petCommand(args: string[]) {
       try { execSync("pkill -f LilEmergeX"); } catch {}
       setTimeout(() => spawnPet(), 1000);
       break;
+    case "deck":
+    case "collection": {
+      const { loadDeck } = await import("../packages/pet/companion.js");
+      const deck = loadDeck();
+      if (deck.companions.length === 0) {
+        console.log("Your companion deck is empty. Start a session to spawn your first friend!");
+        return;
+      }
+      console.log(`🎴 Companion Deck (${deck.companions.length} cards)\n`);
+      for (const entry of deck.companions) {
+        const c = entry.companion;
+        const shiny = c.shiny ? "🌟 " : "";
+        console.log(`${shiny}${c.fullName} — ${c.rarity} ${c.species} (${c.element})`);
+        console.log(`   Title: ${c.title} • Accessory: ${c.accessory}`);
+        console.log(`   Stats: DBG ${c.stats.debug} CHA ${c.stats.chaos} WIS ${c.stats.wisdom} PAT ${c.stats.patience}`);
+      }
+      break;
+    }
     case "build":
       execSync(`bash "${path.join(__dirname, "../apps/lil-emergex/build.sh")}"`, { stdio: "inherit" });
       break;

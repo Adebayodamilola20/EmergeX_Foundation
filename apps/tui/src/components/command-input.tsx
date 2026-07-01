@@ -114,6 +114,10 @@ export function CommandInput({
 	allowEmptySubmit = false,
 }: CommandInputProps) {
 	const [value, setValue] = useState("");
+	// Bumped only on explicit, external value changes (submit, voice inject, ghost
+	// accept). The input syncs from `value` only when this changes, so a lagging
+	// keystroke echo never overwrites what the user is actively typing.
+	const [inputRevision, setInputRevision] = useState(0);
 	const [promptPulse, setPromptPulse] = useState(true);
 	const [showSlashHelp, setShowSlashHelp] = useState(false);
 	const [slashRegistryEntries, setSlashRegistryEntries] = useState<
@@ -138,12 +142,20 @@ export function CommandInput({
 		[builtInSlashGhosts, slashRegistryEntries, slashByToken],
 	);
 
+	// Explicit, external reset of the input value. Bumping the revision tells the
+	// isolated input to adopt this value; plain keystroke echoes do not bump it.
+	const resetInputValue = useCallback((next: string) => {
+		setValue(next);
+		setInputRevision((r) => r + 1);
+	}, []);
+
 	// Inject text from voice transcription (appends to current input)
 	const lastInjectedRef = useRef<string | null>(null);
 	useEffect(() => {
 		if (injectedText && injectedText !== lastInjectedRef.current) {
 			lastInjectedRef.current = injectedText;
 			setValue((prev) => (prev ? prev + " " + injectedText : injectedText));
+			setInputRevision((r) => r + 1);
 		}
 	}, [injectedText]);
 
@@ -191,7 +203,7 @@ export function CommandInput({
 			// Tab to accept ghost suggestion
 			if (key.tab && isVisible && suggestion) {
 				const newValue = accept();
-				setValue(newValue);
+				resetInputValue(newValue);
 				return;
 			}
 
@@ -229,14 +241,14 @@ export function CommandInput({
 					onSlashCommand
 				) {
 					onSlashCommand(resolved.entry.builtInName, resolved.args);
-					setValue("");
+					resetInputValue("");
 					return;
 				}
 			}
 
 			// Regular command
 			onSubmit(input);
-			setValue("");
+			resetInputValue("");
 		},
 		[
 			onSubmit,
@@ -244,6 +256,7 @@ export function CommandInput({
 			allowEmptySubmit,
 			slashRegistryEntries,
 			slashByToken,
+			resetInputValue,
 		],
 	);
 
@@ -310,6 +323,7 @@ export function CommandInput({
 				<Box>
 					<IsolatedTextInput
 						value={value}
+						revision={inputRevision}
 						focus={focused}
 						onChange={handleChange}
 						onSubmit={handleSubmit}
@@ -439,6 +453,8 @@ function SlashCommandHelp({
 
 interface IsolatedTextInputProps {
 	value: string;
+	/** Bumped by the parent only on explicit resets (submit, voice inject, ghost accept). */
+	revision: number;
 	focus?: boolean;
 	onChange: (v: string) => void;
 	onSubmit: (v: string) => void;
@@ -446,22 +462,24 @@ interface IsolatedTextInputProps {
 }
 
 const IsolatedTextInput = memo(
-	({ value, focus, onChange, onSubmit, placeholder }: IsolatedTextInputProps) => {
+	({
+		value,
+		revision,
+		focus,
+		onChange,
+		onSubmit,
+		placeholder,
+	}: IsolatedTextInputProps) => {
 		const [localValue, setLocalValue] = useState(value);
-		const [lastPropValue, setLastPropValue] = useState(value);
+		const lastRevision = useRef(revision);
 
-		// Synchronously derive state from props to prevent stale parent updates from rewriting keystrokes (the primary cause of dropped/jumbled letters in Ink)
-		if (value !== lastPropValue) {
-			setLastPropValue(value);
-			// Only accept the parent's value if it's a hard reset, a leap forward (ghost suggestion accepted), or a complete divergence (e.g. image path replaced)
-			// Ignore if it's just the old prefix lagging behind our fast typing
-			if (
-				value === "" ||
-				(value.length > localValue.length && value.startsWith(localValue)) ||
-				(!localValue.startsWith(value) && !value.startsWith(localValue))
-			) {
-				setLocalValue(value);
-			}
+		// The input owns its text while typing. We adopt the parent's value only when
+		// the revision changes, i.e. on a real external reset - never on the keystroke
+		// echo that trails our own typing. Overwriting from that stale echo was the
+		// cause of dropped and scrambled letters during fast typing in Ink.
+		if (revision !== lastRevision.current) {
+			lastRevision.current = revision;
+			setLocalValue(value);
 		}
 
 		return (

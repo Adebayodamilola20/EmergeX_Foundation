@@ -175,7 +175,7 @@ export function EnhancedStatusBar({
       alignItems="center"
     >
       {/* Left: model and agents — flexShrink={0}, no wrap */}
-      <Box flexShrink={0} flexDirection="row" overflow="hidden">
+      <Box flexShrink={0} flexDirection="row" height={1} overflow="hidden">
         <ActiveIndicator active={true} />
         <MutedText> </MutedText>
         <ModelStatusItem name={displayModel} />
@@ -183,8 +183,17 @@ export function EnhancedStatusBar({
         <AgentStatusItem running={runningAgents} total={totalAgents} />
       </Box>
 
-      {/* Center: permissions — shrinks first, hidden when too narrow */}
-      <Box flexShrink={1} marginX={1} minWidth={0} flexDirection="row" overflow="hidden">
+      {/* Center: permissions — shrinks first, hidden when too narrow.
+          height={1} stops text from wrapping into extra rows, which would
+          change the frame height between renders and desync Ink's redraw. */}
+      <Box
+        flexShrink={1}
+        marginX={1}
+        minWidth={0}
+        flexDirection="row"
+        height={1}
+        overflow="hidden"
+      >
         {planStatus !== "idle" && (
           <>
             <PlanStatusItem
@@ -204,7 +213,7 @@ export function EnhancedStatusBar({
       </Box>
 
       {/* Right: savings, branch, auth, voice, time — no wrap */}
-      <Box flexShrink={0} flexDirection="row" overflow="hidden">
+      <Box flexShrink={0} flexDirection="row" height={1} overflow="hidden">
         <TokenSavingsItem saved={tokensSaved} percentage={savings} barWidth={barWidth} />
         {displayBranch && (
           <>

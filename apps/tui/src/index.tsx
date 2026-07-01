@@ -30,8 +30,27 @@ if (hasInfiniteFlag) {
 const command = parsed.positional[0] || "repl";
 const passthroughArgs = parsed.positional.slice(1);
 
+// Fullscreen: switch to the alternate screen buffer (like vim/htop) so Ink owns
+// a clean, fixed viewport. Without this, shell output above the app breaks Ink's
+// erase-and-redraw line accounting and stale characters bleed into every frame.
+const ALT_SCREEN_ENTER = "\x1b[?1049h\x1b[H\x1b[2J";
+const ALT_SCREEN_EXIT = "\x1b[?1049l";
+const isTTY = Boolean(process.stdout.isTTY);
+
+if (isTTY) {
+  process.stdout.write(ALT_SCREEN_ENTER);
+}
+
+const restoreScreen = () => {
+  if (isTTY) {
+    process.stdout.write(ALT_SCREEN_EXIT);
+  }
+};
+// Restore the normal buffer on every exit path (clean exit, crash, signal)
+process.on("exit", restoreScreen);
+
 // Render the TUI
-render(
+const instance = render(
   <App
     initialCommand={command}
     args={passthroughArgs}
@@ -42,3 +61,13 @@ render(
     cliAutoApprove={parsed.yes}
   />,
 );
+
+// A resize re-wraps every line, invalidating Ink's previous-frame line count.
+// Clear the screen so the next paint starts from a known-clean state.
+if (isTTY) {
+  process.stdout.on("resize", () => {
+    process.stdout.write("\x1b[2J\x1b[H");
+  });
+}
+
+instance.waitUntilExit().then(restoreScreen, restoreScreen);

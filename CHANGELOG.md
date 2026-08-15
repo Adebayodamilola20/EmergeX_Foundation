@@ -18,6 +18,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - docs: add harness smoke quick start path and CI smoke job (#1228)
 
 ### Fixed
+- **shellSplit empty arguments** - `packages/tools/shell-escape.ts` emitted a token only when it had accumulated characters, so an explicitly quoted empty argument was dropped: `shellSplit("cmd a '' b")` returned `["cmd", "a", "b"]`. `buildCommand` and `shellSplit` now round-trip, which stops the silent positional shift that turned `cmd --flag '' file.txt` into `cmd --flag file.txt`. (#1)
 - **TUI CLI provider/model** - `apps/tui/src/index.tsx` now parses `--provider=`, `--model=`, `--yes`/`-y` (and keeps `--infinite`, `--name`, `--resume`). The first positional defaults to `repl` when argv is flags-only, so `emergex tui --provider=lmstudio --model=...` applies. **`bin/emergex.ts`** prepends implicit `tui` when the first token is a flag (e.g. `emergex --provider=lmstudio --yes`).
 - **TUI default model (LM Studio / Ollama)** - After the model list loads, selection is corrected to skip embedding/rerank ids and to honor CLI `--model` via fuzzy match. Ollama startup default uses the same ranking (prefers `eight*`, instruct/chat sizes) instead of raw API order.
 - **TUI infinite mode indicator** - Footer `permissionMode` now initializes from `isInfiniteMode()` so `emergex --infinite` matches the status line (was always "ask" until `/infinite` toggled React state).
@@ -31,6 +32,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **TUI status bar copy** - Permission and run lines use plain `perm` / `run` labels instead of bracket badges so they read as telemetry, not controls. After a turn finishes, green state is labeled **ready (awaiting input)** instead of **Done** (which implied the whole task succeeded).
 
 ### Added
+- **First unit tests under `packages/`** - `packages/tools/shell-escape.test.ts` covers all five exports (`escapeArg`, `escapeArgs`, `buildCommand`, `shellQuote`, `shellSplit`) across 32 cases, including shell-metacharacter and injection-inertness checks and a `buildCommand`/`shellSplit` round-trip property. (#1)
 - feat: MoshiMLXProvider full-duplex voice backend for Apple Silicon (#1253)
 - feat: FullDuplexProvider interface and machine-aware backend detector in @emergex/voice (#1252)
 - feat: extract HyperAgent sequential pipeline into @emergex/orchestration (#1251)

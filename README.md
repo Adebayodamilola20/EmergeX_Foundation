@@ -1,4 +1,4 @@
-# EmergeX Code — The Infinite Gentleman
+# EmergeX Code - The Infinite Gentleman
 
 > **The kernel of the EmergeX ecosystem.**
 > Open source autonomous coding agent powered by local LLMs or free cloud models.
@@ -31,7 +31,7 @@ The floor is zero cost. The ceiling is what a self-improving local agent can lea
 npm install -g @emergex/emergex-code
 emergex
 ```
-That's it. Ollama runs locally by default — if you don't have it, EmergeX will guide you through setup on first launch.
+That's it. Ollama runs locally by default. If you don't have it, EmergeX will guide you through setup on first launch.
 
 ### From Source (Contributors)
 ```bash
@@ -136,11 +136,32 @@ Professional-grade execution tests. All local inference via Ollama.
 
 ## Project Structure
 
-- `apps/tui/`: Ink v6 terminal interface.
-- `apps/docs/`: Nextra documentation site.
-- `packages/emergex/`: Core agent logic.
-- `packages/ai/`: Provider abstractions.
-- `packages/kernel/`: IL fine-tuning pipeline.
+A Bun monorepo: 7 apps, 52 packages.
+
+| Path | What it is |
+|---|---|
+| `apps/tui/` | Ink v6 terminal interface. The main surface. |
+| `apps/clui/` | Tauri 2.0 desktop overlay. |
+| `apps/installer/` | First-run setup wizard. |
+| `packages/emergex/` | The agent: turn loop, tool definitions, prompts, sessions. |
+| `packages/tools/` | Utility layer and the tools the agent calls. Largest package. |
+| `packages/permissions/` | NemoClaw policy engine. Deny-by-default, gates the shell. |
+| `packages/memory/` | SQLite + FTS5 episodic and semantic recall. |
+| `packages/ai/` | Provider abstraction and task routing. |
+| `packages/kernel/` | RL fine-tuning pipeline. Off by default. |
+
+Start reading at `packages/emergex/agent.ts`. Its `chat()` method is the whole turn in one place.
+
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** has the full map: how a turn flows end to end, the complete tool surface, where the safety boundary sits, and an honest status table of what is finished versus in progress.
+
+### Running the tests
+
+```bash
+bun run test              # the repository's own suite
+bun run test:benchmarks   # benchmark fixtures, graded separately
+```
+
+These are deliberately separate. Files under `benchmarks/categories/*/tests/` are task specifications, not tests of this repository, and fail by design without generated code present. See [benchmarks/README.md](benchmarks/README.md).
 
 ---
 

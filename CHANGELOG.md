@@ -19,6 +19,8 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 - **shellSplit empty arguments** - `packages/tools/shell-escape.ts` emitted a token only when it had accumulated characters, so an explicitly quoted empty argument was dropped: `shellSplit("cmd a '' b")` returned `["cmd", "a", "b"]`. `buildCommand` and `shellSplit` now round-trip, which stops the silent positional shift that turned `cmd --flag '' file.txt` into `cmd --flag file.txt`. (#1)
+- **`edit_file` file corruption** - `editFile` used `content.replace(oldText, newText)`. `String.prototype.replace` interprets `$&`, `` $` ``, `$'`, `$$` and `$<name>` inside the replacement, so any `newText` containing those sequences (shell scripts, `sed`/`awk`, regex replacement strings, template literals) was rewritten before it reached disk while the tool reported success. Replacement is now done by index and slice, so `newText` is inserted literally. (#4)
+- **`edit_file` ambiguous matches** - An `oldText` matching several places silently edited the first occurrence and reported plain success. The edit is now rejected with the match count and how to disambiguate, and a new `replaceAll` option covers the deliberate case. Empty `oldText` and no-op edits where `oldText === newText` are rejected rather than reported as successful. (#4)
 - **TUI CLI provider/model** - `apps/tui/src/index.tsx` now parses `--provider=`, `--model=`, `--yes`/`-y` (and keeps `--infinite`, `--name`, `--resume`). The first positional defaults to `repl` when argv is flags-only, so `emergex tui --provider=lmstudio --model=...` applies. **`bin/emergex.ts`** prepends implicit `tui` when the first token is a flag (e.g. `emergex --provider=lmstudio --yes`).
 - **TUI default model (LM Studio / Ollama)** - After the model list loads, selection is corrected to skip embedding/rerank ids and to honor CLI `--model` via fuzzy match. Ollama startup default uses the same ranking (prefers `eight*`, instruct/chat sizes) instead of raw API order.
 - **TUI infinite mode indicator** - Footer `permissionMode` now initializes from `isInfiniteMode()` so `emergex --infinite` matches the status line (was always "ask" until `/infinite` toggled React state).
@@ -33,6 +35,8 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 - **First unit tests under `packages/`** - `packages/tools/shell-escape.test.ts` covers all five exports (`escapeArg`, `escapeArgs`, `buildCommand`, `shellQuote`, `shellSplit`) across 32 cases, including shell-metacharacter and injection-inertness checks and a `buildCommand`/`shellSplit` round-trip property. (#1)
+- **`packages/tools/apply-edit.ts`** - Pure, I/O-free replacement core behind `edit_file`, exporting `applyEdit`, `replaceLiteral` and `countOccurrences`. Covered by 19 unit tests including the `$`-pattern and ambiguity regressions. (#4)
+- **`edit_file` `replaceAll` option** - Opt in to changing every occurrence when a non-unique match is intended. (#4)
 - feat: MoshiMLXProvider full-duplex voice backend for Apple Silicon (#1253)
 - feat: FullDuplexProvider interface and machine-aware backend detector in @emergex/voice (#1252)
 - feat: extract HyperAgent sequential pipeline into @emergex/orchestration (#1251)

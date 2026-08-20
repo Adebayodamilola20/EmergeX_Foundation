@@ -12,6 +12,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - feat: ExtensionCrafter — autonomous source-to-extension agent (#1254)
 
 ### CI
+- **Test step scoped to source** - The `Test` job ran a bare `bun test` from the repo root, which collected the 44 fixture suites under `benchmarks/categories/*/tests/`. Those import their subject from `WORK_DIR` (model-generated code) and fail by design when it is absent, so CI reported 438 failures on every run and could never pass regardless of the change under test. `npm test` is now `bun test packages apps`, benchmark fixtures moved to `bun run test:benchmarks`, and `benchmarks/README.md` documents the split. (#3)
 - ci: add check:harness scoped typecheck for harness entrypoints (#1227)
 - ci: block merge conflict markers in TS/TSX sources (#1226)
 - docs: add harness smoke quick start path and CI smoke job (#1228)

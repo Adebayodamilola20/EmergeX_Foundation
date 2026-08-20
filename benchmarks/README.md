@@ -13,6 +13,12 @@ Every benchmark follows the same loop:
 
 No human evaluation. No subjective scoring. Code runs or it doesn't.
 
+### These suites are not CI gates
+
+The `bun:test` files under `categories/*/tests/` are task specifications, not tests of this repository. They import the solution from `WORK_DIR`, which holds code a model generated during a benchmark run. With no generated code present they fail by design, and a failure here measures a model, not a regression.
+
+Run them through the harness, or directly with `bun run test:benchmarks`. The repository's own suite is `bun run test`, which is scoped to `packages/` and `apps/` and is what CI gates on. A bare `bun test` from the repo root collects both and will report hundreds of failures that mean nothing.
+
 ### Autoresearch Loop
 
 The harness runs iteratively:

@@ -17,6 +17,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - docs: add harness smoke quick start path and CI smoke job (#1228)
 
 ### Fixed
+- **README accuracy** - The Project Structure section listed `apps/docs/` (a Nextra site that does not exist in this repository) and described `packages/kernel/` as an "IL" rather than RL fine-tuning pipeline. Replaced with a verified table of the main paths, a pointer into `agent.ts` as the entry point, and the scoped test commands. Two em dashes removed per the writing rules in `CLAUDE.md`. (#8)
 - **TUI CLI provider/model** - `apps/tui/src/index.tsx` now parses `--provider=`, `--model=`, `--yes`/`-y` (and keeps `--infinite`, `--name`, `--resume`). The first positional defaults to `repl` when argv is flags-only, so `emergex tui --provider=lmstudio --model=...` applies. **`bin/emergex.ts`** prepends implicit `tui` when the first token is a flag (e.g. `emergex --provider=lmstudio --yes`).
 - **TUI default model (LM Studio / Ollama)** - After the model list loads, selection is corrected to skip embedding/rerank ids and to honor CLI `--model` via fuzzy match. Ollama startup default uses the same ranking (prefers `eight*`, instruct/chat sizes) instead of raw API order.
 - **TUI infinite mode indicator** - Footer `permissionMode` now initializes from `isInfiniteMode()` so `emergex --infinite` matches the status line (was always "ask" until `/infinite` toggled React state).
@@ -30,6 +31,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **TUI status bar copy** - Permission and run lines use plain `perm` / `run` labels instead of bracket badges so they read as telemetry, not controls. After a turn finishes, green state is labeled **ready (awaiting input)** instead of **Done** (which implied the whole task succeeded).
 
 ### Added
+- **`docs/ARCHITECTURE.md`** - The repository had no architecture document. Adds a map of how a turn flows end to end through `Agent.chat()`, the full tool surface grouped by purpose, the distinction between the policy-gated shell path and the `safePath`-contained file path, a grouped map of all 7 apps and 52 packages, a suggested reading order, and an honest status table naming what is finished, what is in progress, and what is off by default. (#8)
 - feat: MoshiMLXProvider full-duplex voice backend for Apple Silicon (#1253)
 - feat: FullDuplexProvider interface and machine-aware backend detector in @emergex/voice (#1252)
 - feat: extract HyperAgent sequential pipeline into @emergex/orchestration (#1251)

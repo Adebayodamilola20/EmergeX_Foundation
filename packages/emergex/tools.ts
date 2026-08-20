@@ -30,6 +30,7 @@ import {
   readImage,
   describeImage,
 } from "../tools/image";
+import { applyEdit } from "../tools/apply-edit";
 // PDF tools - lazy loaded to avoid DOMMatrix issues
 const readPdf = async (p: string) => { throw new Error("PDF support coming soon"); };
 const readPdfPage = async (p: string, n: number) => { throw new Error("PDF support coming soon"); };
@@ -331,13 +332,14 @@ export class ToolExecutor {
         type: "function",
         function: {
           name: "edit_file",
-          description: "[FILE] Returns confirmation after replacing an exact text match in a file with new text. Use this for surgical edits to existing files - prefer over write_file when changing a specific function or block. The oldText must match exactly (whitespace-sensitive). If the match fails, read_file first to get the exact current content, then retry.",
+          description: "[FILE] Returns confirmation after replacing an exact text match in a file with new text. Use this for surgical edits to existing files - prefer over write_file when changing a specific function or block. The oldText must match exactly (whitespace-sensitive). If the match fails, read_file first to get the exact current content, then retry. If oldText appears more than once the edit is rejected rather than guessing: include surrounding lines to make it unique, or set replaceAll to change every occurrence.",
           parameters: {
             type: "object",
             properties: {
               path: { type: "string", description: "Path to the file" },
-              oldText: { type: "string", description: "Text to find and replace" },
-              newText: { type: "string", description: "Replacement text" }
+              oldText: { type: "string", description: "Text to find and replace. Must match exactly and must be unique in the file unless replaceAll is true." },
+              newText: { type: "string", description: "Replacement text, inserted literally" },
+              replaceAll: { type: "boolean", description: "Replace every occurrence instead of requiring a unique match (default: false)" }
             },
             required: ["path", "oldText", "newText"]
           }
@@ -841,7 +843,12 @@ export class ToolExecutor {
       }
       case "edit_file": {
         const safe = safePath(args.path as string, this.workingDirectory);
-        return this.editFile(safe, args.oldText as string, args.newText as string);
+        return this.editFile(
+          safe,
+          args.oldText as string,
+          args.newText as string,
+          args.replaceAll === true,
+        );
       }
       case "list_files":
         return this.listFiles(args.path as string, args.pattern as string);
@@ -1292,7 +1299,12 @@ export class ToolExecutor {
     return `File written and opened: ${absolutePath}${designHint}`;
   }
 
-  private async editFile(filePath: string, oldText: string, newText: string): Promise<string> {
+  private async editFile(
+    filePath: string,
+    oldText: string,
+    newText: string,
+    replaceAll: boolean = false,
+  ): Promise<string> {
     const absolutePath = path.isAbsolute(filePath)
       ? filePath
       : path.join(this.workingDirectory, filePath);
@@ -1302,15 +1314,16 @@ export class ToolExecutor {
     }
 
     const content = fs.readFileSync(absolutePath, "utf-8");
+    const result = applyEdit(content, oldText, newText, { replaceAll });
 
-    if (!content.includes(oldText)) {
-      return `Error: Could not find the text to replace in ${filePath}. Make sure oldText matches exactly.`;
+    if (!result.ok) {
+      return `Error editing ${filePath}: ${result.message}`;
     }
 
-    const newContent = content.replace(oldText, newText);
-    fs.writeFileSync(absolutePath, newContent);
+    fs.writeFileSync(absolutePath, result.content);
 
-    return `File edited: ${absolutePath}\nReplaced ${oldText.length} chars with ${newText.length} chars.`;
+    const where = result.replacements === 1 ? "1 occurrence" : `${result.replacements} occurrences`;
+    return `File edited: ${absolutePath}\nReplaced ${where}.`;
   }
 
   private async listFiles(dirPath: string = ".", pattern?: string): Promise<string> {

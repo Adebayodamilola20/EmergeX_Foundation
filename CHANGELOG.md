@@ -30,6 +30,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **TUI status bar copy** - Permission and run lines use plain `perm` / `run` labels instead of bracket badges so they read as telemetry, not controls. After a turn finishes, green state is labeled **ready (awaiting input)** instead of **Done** (which implied the whole task succeeded).
 
 ### Added
+- **`search_content` tool** - The agent had no way to search file contents; `list_files` directed it to `run_command` with `grep`, which depends on the host toolchain, differs between platforms, returns unstructured text, is subject to the shell policy gate, and can return unbounded output. `search_content` searches natively and returns `file:line:column` locations that can be passed straight to `read_file`. Literal by default with an opt-in `regex` mode, plus `caseSensitive`, `extensions`, `contextLines` and `maxResults`. Skips `node_modules`, dot directories and binary files, clips long lines, and caps results so a search cannot exhaust the context window. Backed by `packages/tools/search-content.ts` and 25 unit tests. (#6)
 - feat: MoshiMLXProvider full-duplex voice backend for Apple Silicon (#1253)
 - feat: FullDuplexProvider interface and machine-aware backend detector in @emergex/voice (#1252)
 - feat: extract HyperAgent sequential pipeline into @emergex/orchestration (#1251)

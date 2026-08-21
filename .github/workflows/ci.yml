@@ -43,7 +43,11 @@ jobs:
         run: bun run lint
 
       - name: Test
-        run: bun test
+        # Scoped to source. A bare `bun test` also collects the fixture suites
+        # under benchmarks/, which are task specifications the agent is meant to
+        # solve and therefore fail by design. Run those with `bun run
+        # test:benchmarks` via the benchmark harness, not as a CI gate.
+        run: bun run test
 
       - name: Build CLI
         run: bun run build

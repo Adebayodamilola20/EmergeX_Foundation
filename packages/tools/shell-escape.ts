@@ -88,10 +88,20 @@ type SplitState = "normal" | "single" | "double";
  *
  * shellSplit('echo "hello world"')
  * // => ["echo", "hello world"]
+ *
+ * An explicitly quoted empty argument is preserved as an empty string,
+ * so buildCommand output round-trips back to the original arguments.
+ *
+ * shellSplit("cmd --flag '' file.txt")
+ * // => ["cmd", "--flag", "", "file.txt"]
  */
 export function shellSplit(input: string): string[] {
   const args: string[] = [];
   let current = "";
+  // Tracks whether a token has been started, independently of its length.
+  // Without this, an explicitly quoted empty argument ('' or "") would be
+  // indistinguishable from no argument at all and would be dropped.
+  let started = false;
   let state: SplitState = "normal";
   let i = 0;
 
@@ -130,9 +140,10 @@ export function shellSplit(input: string): string[] {
 
     // state === "normal"
     if (ch === " " || ch === "\t" || ch === "\n") {
-      if (current.length > 0) {
+      if (started) {
         args.push(current);
         current = "";
+        started = false;
       }
       i++;
       continue;
@@ -140,30 +151,34 @@ export function shellSplit(input: string): string[] {
 
     if (ch === "'") {
       state = "single";
+      started = true;
       i++;
       continue;
     }
 
     if (ch === '"') {
       state = "double";
+      started = true;
       i++;
       continue;
     }
 
     if (ch === "\\" && i + 1 < input.length) {
       current += input[i + 1];
+      started = true;
       i += 2;
       continue;
     }
 
     current += ch;
+    started = true;
     i++;
   }
 
   if (state === "single") throw new Error("Unterminated single quote in shell string");
   if (state === "double") throw new Error("Unterminated double quote in shell string");
 
-  if (current.length > 0) args.push(current);
+  if (started) args.push(current);
 
   return args;
 }

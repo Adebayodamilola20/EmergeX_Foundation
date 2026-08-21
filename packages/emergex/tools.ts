@@ -30,6 +30,8 @@ import {
   readImage,
   describeImage,
 } from "../tools/image";
+import { applyEdit } from "../tools/apply-edit";
+import { searchContent, type SearchOptions } from "../tools/search-content";
 // PDF tools - lazy loaded to avoid DOMMatrix issues
 const readPdf = async (p: string) => { throw new Error("PDF support coming soon"); };
 const readPdfPage = async (p: string, n: number) => { throw new Error("PDF support coming soon"); };
@@ -331,13 +333,14 @@ export class ToolExecutor {
         type: "function",
         function: {
           name: "edit_file",
-          description: "[FILE] Returns confirmation after replacing an exact text match in a file with new text. Use this for surgical edits to existing files - prefer over write_file when changing a specific function or block. The oldText must match exactly (whitespace-sensitive). If the match fails, read_file first to get the exact current content, then retry.",
+          description: "[FILE] Returns confirmation after replacing an exact text match in a file with new text. Use this for surgical edits to existing files - prefer over write_file when changing a specific function or block. The oldText must match exactly (whitespace-sensitive). If the match fails, read_file first to get the exact current content, then retry. If oldText appears more than once the edit is rejected rather than guessing: include surrounding lines to make it unique, or set replaceAll to change every occurrence.",
           parameters: {
             type: "object",
             properties: {
               path: { type: "string", description: "Path to the file" },
-              oldText: { type: "string", description: "Text to find and replace" },
-              newText: { type: "string", description: "Replacement text" }
+              oldText: { type: "string", description: "Text to find and replace. Must match exactly and must be unique in the file unless replaceAll is true." },
+              newText: { type: "string", description: "Replacement text, inserted literally" },
+              replaceAll: { type: "boolean", description: "Replace every occurrence instead of requiring a unique match (default: false)" }
             },
             required: ["path", "oldText", "newText"]
           }
@@ -347,13 +350,33 @@ export class ToolExecutor {
         type: "function",
         function: {
           name: "list_files",
-          description: "[FILE] Returns a list of filenames and directories at the given path, optionally filtered by glob pattern. Use this to explore project structure or find files by name pattern. For finding files by content, use search_symbols or run_command with grep instead.",
+          description: "[FILE] Returns a list of filenames and directories at the given path, optionally filtered by glob pattern. Use this to explore project structure or find files by name pattern. To find files by their contents, use search_content.",
           parameters: {
             type: "object",
             properties: {
               path: { type: "string", description: "Directory path (default: current directory)" },
               pattern: { type: "string", description: "Glob pattern to filter files" }
             }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "search_content",
+          description: "[FILE] Returns file:line:column matches for text appearing anywhere in the project's files. This is the tool for 'where is X used', 'find every call to Y', or locating a string when you do not know which file holds it. Searches literally by default; set regex for a pattern. Skips node_modules, dot directories and binary files, and caps output, so prefer it over run_command with grep. Use search_symbols instead when you want a declaration rather than every mention.",
+          parameters: {
+            type: "object",
+            properties: {
+              pattern: { type: "string", description: "Text to find. Literal unless regex is true." },
+              path: { type: "string", description: "Directory to search under, relative to the project root (default: whole project)" },
+              regex: { type: "boolean", description: "Treat pattern as a regular expression (default: false)" },
+              caseSensitive: { type: "boolean", description: "Match case exactly (default: false)" },
+              extensions: { type: "array", items: { type: "string" }, description: "Only search files ending with these suffixes, e.g. [\".ts\", \".tsx\"]" },
+              contextLines: { type: "number", description: "Lines of surrounding context per match (default: 0)" },
+              maxResults: { type: "number", description: "Stop after this many matches (default: 100)" }
+            },
+            required: ["pattern"]
           }
         }
       },
@@ -841,10 +864,17 @@ export class ToolExecutor {
       }
       case "edit_file": {
         const safe = safePath(args.path as string, this.workingDirectory);
-        return this.editFile(safe, args.oldText as string, args.newText as string);
+        return this.editFile(
+          safe,
+          args.oldText as string,
+          args.newText as string,
+          args.replaceAll === true,
+        );
       }
       case "list_files":
         return this.listFiles(args.path as string, args.pattern as string);
+      case "search_content":
+        return this.searchContent(args);
 
       // Git operations
       case "git_status":
@@ -1292,7 +1322,64 @@ export class ToolExecutor {
     return `File written and opened: ${absolutePath}${designHint}`;
   }
 
-  private async editFile(filePath: string, oldText: string, newText: string): Promise<string> {
+  /**
+   * Render search hits as `file:line:column: text`, the form editors and grep
+   * already agree on, so the model can quote a location straight back into
+   * read_file. Context lines are indented under their match.
+   */
+  private searchContent(args: Record<string, unknown>): string {
+    const options: SearchOptions = {
+      pattern: String(args.pattern ?? ""),
+      regex: args.regex === true,
+      caseSensitive: args.caseSensitive === true,
+      extensions: Array.isArray(args.extensions) ? args.extensions.map(String) : undefined,
+      contextLines: Number(args.contextLines) || 0,
+      maxResults: Number(args.maxResults) || 100,
+    };
+
+    if (!options.pattern) return "Error: pattern is required.";
+
+    const root = safePath((args.path as string) || ".", this.workingDirectory);
+
+    let result: ReturnType<typeof searchContent>;
+    try {
+      result = searchContent(root, options);
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : String(error)}`;
+    }
+
+    if (result.matches.length === 0) {
+      return `No matches for ${JSON.stringify(options.pattern)} in ${result.filesSearched} files.`;
+    }
+
+    // searchContent reports paths relative to the directory it walked. Re-root
+    // them on the working directory so the model can pass one straight to
+    // read_file without knowing which subtree was searched.
+    const prefix = path.relative(this.workingDirectory, root);
+    const locate = (file: string) => (prefix ? path.join(prefix, file) : file);
+
+    const lines: string[] = [];
+    for (const match of result.matches) {
+      for (const line of match.before) lines.push(`  ${line}`);
+      lines.push(`${locate(match.file)}:${match.line}:${match.column}: ${match.text}`);
+      for (const line of match.after) lines.push(`  ${line}`);
+    }
+
+    const files = new Set(result.matches.map((m) => m.file)).size;
+    const summary = `${result.matches.length} match${result.matches.length === 1 ? "" : "es"} in ${files} file${files === 1 ? "" : "s"} (${result.filesSearched} searched)`;
+    const note = result.truncated
+      ? `\n${summary}, stopped at maxResults. Narrow the pattern or set extensions to see the rest.`
+      : `\n${summary}.`;
+
+    return lines.join("\n") + note;
+  }
+
+  private async editFile(
+    filePath: string,
+    oldText: string,
+    newText: string,
+    replaceAll: boolean = false,
+  ): Promise<string> {
     const absolutePath = path.isAbsolute(filePath)
       ? filePath
       : path.join(this.workingDirectory, filePath);
@@ -1302,15 +1389,16 @@ export class ToolExecutor {
     }
 
     const content = fs.readFileSync(absolutePath, "utf-8");
+    const result = applyEdit(content, oldText, newText, { replaceAll });
 
-    if (!content.includes(oldText)) {
-      return `Error: Could not find the text to replace in ${filePath}. Make sure oldText matches exactly.`;
+    if (!result.ok) {
+      return `Error editing ${filePath}: ${result.message}`;
     }
 
-    const newContent = content.replace(oldText, newText);
-    fs.writeFileSync(absolutePath, newContent);
+    fs.writeFileSync(absolutePath, result.content);
 
-    return `File edited: ${absolutePath}\nReplaced ${oldText.length} chars with ${newText.length} chars.`;
+    const where = result.replacements === 1 ? "1 occurrence" : `${result.replacements} occurrences`;
+    return `File edited: ${absolutePath}\nReplaced ${where}.`;
   }
 
   private async listFiles(dirPath: string = ".", pattern?: string): Promise<string> {

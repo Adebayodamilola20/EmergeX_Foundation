@@ -1,6 +1,6 @@
 {
   "name": "@emergex/emergex-code",
-  "version": "0.2.0",
+  "version": "0.0.1",
   "private": false,
   "description": "EmergeX Code : The Infinite Gentleman Agent, Autonomous coding agent powered by local LLMs",
   "type": "module",
